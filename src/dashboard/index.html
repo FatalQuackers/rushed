@@ -1,321 +1,294 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- @head title="Scouting dashboard — RUSHED" desc="Sign in to the RUSHED scouting dashboard: high-potential Roblox games, hidden gems and game submissions." -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171719">
   <meta name="robots" content="noindex">
+  <title>RUSHED Scouting Dashboard</title>
+  <script>
+    (function () { try { var s = localStorage.getItem('rushed-theme'); if (s ? s === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {} })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="../mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="dash.css?v={{v}}">
 </head>
-<body class="dash-page">
-  <!-- @header page="dashboard" -->
-
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-discord" viewBox="0 0 24 24"><path fill="currentColor" d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.6 0L8.6 3a19.7 19.7 0 0 0-4.9 1.4C.6 9 .1 13.6.3 18.1a19.9 19.9 0 0 0 6 3l1.3-2a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2a19.8 19.8 0 0 0 6-3c.4-5.2-.7-9.7-3.6-13.7ZM8.5 15.3c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm7 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></symbol>
-  </svg>
-
-  <main id="main">
-    <section class="page-hero page-hero-ink dash-hero" aria-labelledby="page-title">
-      <div class="hero-lines" aria-hidden="true"></div>
-      <div class="page-hero-inner">
-        <p class="crumbs"><a href="../">Home</a> <span>/</span> Scouting dashboard</p>
-        <p class="kicker"><span class="rule"></span> FOR RUSHED SCOUTS</p>
-        <h1 id="page-title">SCOUTING<br>WITHOUT THE <em>GRIND.</em></h1>
-        <p class="page-lead">Scouting doesn't have to be a grind. Our dashboard removes the tedious work of manually hunting down games on Roblox or third-party marketplaces. You get direct access to high-potential games and hidden gems with exceptional CCU to Visit ratios.</p>
+<body data-page="app" data-root="../">
+  <!-- ============ Signed out / waiting screens ============ -->
+  <div class="auth" id="auth-view">
+    <aside class="auth-side">
+      <a class="logo" href="../"><span class="logo-mark">R</span><span>RUSHED<b>.</b><small>SCOUTING DASHBOARD</small></span></a>
+      <div class="auth-pitch">
+        <h1>SCOUTING<br>WITHOUT THE <em>GRIND.</em></h1>
+        <ul class="perks">
+          <li><b>Hidden gems</b> High-potential games ranked by their Efficiency Factor (CCU vs. total visits).</li>
+          <li><b>Direct socials</b> Discord and X links on every game, so you skip the manual searching.</li>
+          <li><b>Deep analytics</b> CCU and visit history charts, growth rate, playtime, retention and revenue estimates.</li>
+          <li><b>Filters</b> Narrow it down by genre, minimum CCU or growth rate to hit your niche.</li>
+        </ul>
       </div>
-      <div class="page-hero-star" aria-hidden="true">⌕</div>
-    </section>
+      <p class="auth-foot">Scout role required · <a href="../">rushed main site ↗</a></p>
+    </aside>
 
-    <!-- ============ Signed out ============ -->
-    <section class="dash wrap" id="login-view">
-      <div class="meta"><span>SIGN IN</span><span>SCOUTS &amp; ADMINS ONLY</span></div>
-      <div class="login-grid">
-        <div class="login-info">
-          <h2 class="display section-title">FIND THE <em>HIDDEN GEMS.</em></h2>
-          <ul class="perks">
-            <li><b>Direct access</b><span>High-potential games in one place, no more digging through Roblox or third-party marketplaces.</span></li>
-            <li><b>Hidden gems</b><span>Spot games with an exceptional CCU to visits ratio before everyone else does.</span></li>
-            <li><b>Submit games</b><span>Found something special? Send it in to be scouted and follow its review.</span></li>
-            <li><b>Discord built in</b><span>Sign in with Discord and get new submissions and reviews posted to your server.</span></li>
-          </ul>
-        </div>
-
-        <form class="login-card" id="login-form" novalidate>
-          <span class="value-num">SIGN IN TO THE DASHBOARD</span>
-          <button class="discord-btn" type="button" id="discord-login"><svg width="18" height="18" aria-hidden="true"><use href="#i-discord"/></svg> CONTINUE WITH DISCORD</button>
-          <p class="soon" id="discord-login-note">Works once your account has been linked to Discord.</p>
-          <p class="soon">Dashboard records stay in this browser. Use Settings → Backup to move existing records to this site.</p>
-          <div class="or"><span>OR USE YOUR RUSHED LOGIN</span></div>
-          <label>Username<input name="username" type="text" autocomplete="username" required autocapitalize="off" spellcheck="false"></label>
-          <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-          <label class="check"><input name="remember" type="checkbox"> Keep me signed in on this device</label>
-          <button class="cta login-btn" type="submit">SIGN IN <span>↗</span></button>
-          <p class="form-note" id="login-note" role="alert" aria-live="assertive"></p>
-        </form>
+    <main class="auth-main">
+      <div class="setup-warn" id="setup-warn" hidden>
+        <b>Dashboard not connected yet.</b> Add the Supabase URL and key to <code>src/dashboard/config.js</code> (see the README).
       </div>
-    </section>
 
-    <!-- ============ Signed in ============ -->
-    <section class="dash wrap" id="app-view" hidden>
-      <div class="dash-bar">
-        <div class="who"><span class="avatar" id="who-avatar">R</span><div><b id="who-name">rushed</b><span id="who-role" class="role-pill">ADMIN</span> <span class="discord-pill" id="who-discord" hidden><svg width="12" height="12" aria-hidden="true"><use href="#i-discord"/></svg> <span></span></span></div></div>
-        <div class="bar-actions">
-          <button class="ghost-btn" id="pw-toggle" type="button" aria-expanded="false" aria-controls="pw-form">CHANGE PASSWORD</button>
-          <button class="ghost-btn" id="sign-out" type="button">SIGN OUT ↗</button>
-        </div>
-      </div>
-      <form class="pw-form" id="pw-form" hidden novalidate>
-        <input class="sr" name="username" type="text" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
-        <label>Current password<input name="current" type="password" autocomplete="current-password" required></label>
-        <label>New password<input name="next" type="password" autocomplete="new-password" required minlength="6"></label>
-        <label>Repeat new password<input name="repeat" type="password" autocomplete="new-password" required minlength="6"></label>
-        <button class="cta form-send" type="submit">SAVE <span>↗</span></button>
-        <p class="form-note" id="pw-note" role="status" aria-live="polite"></p>
+      <form class="card" id="login-form" novalidate>
+        <span class="eyebrow">SIGN IN</span>
+        <h2>Welcome back, scout.</h2>
+        <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="btn btn-red" type="submit">SIGN IN ↗</button>
+        <p class="note" id="login-note" role="alert"></p>
+        <div class="card-links"><button type="button" class="link" id="forgot-open">Forgot password?</button><a class="link" href="signup/">Create an account ↗</a></div>
       </form>
 
-      <div class="tabs" role="tablist" aria-label="Dashboard sections">
-        <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true">Overview</button>
-        <button role="tab" id="tab-gems" aria-controls="panel-gems" aria-selected="false" tabindex="-1">Hidden gems</button>
-        <button role="tab" id="tab-submit" aria-controls="panel-submit" aria-selected="false" tabindex="-1">Submit a game</button>
-        <button role="tab" id="tab-subs" aria-controls="panel-subs" aria-selected="false" tabindex="-1">Submissions <span class="count" id="subs-count" hidden>0</span></button>
-        <button role="tab" id="tab-board" aria-controls="panel-board" aria-selected="false" tabindex="-1">Leaderboard</button>
-        <button role="tab" id="tab-discord" aria-controls="panel-discord" aria-selected="false" tabindex="-1">Discord</button>
-        <button role="tab" id="tab-activity" aria-controls="panel-activity" aria-selected="false" tabindex="-1" data-admin>Activity</button>
-        <button role="tab" id="tab-scouts" aria-controls="panel-scouts" aria-selected="false" tabindex="-1" data-admin>Scouts</button>
-        <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false" tabindex="-1" data-admin>Settings</button>
+      <form class="card" id="forgot-form" hidden novalidate>
+        <span class="eyebrow">RESET PASSWORD</span>
+        <h2>Forgot it? No worries.</h2>
+        <p class="muted">We'll email you a link to choose a new password.</p>
+        <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        <button class="btn btn-red" type="submit">SEND RESET LINK ↗</button>
+        <p class="note" id="forgot-note" role="status"></p>
+        <div class="card-links"><button type="button" class="link" data-auth="login">← Back to sign in</button></div>
+      </form>
+
+      <form class="card" id="reset-form" hidden novalidate>
+        <span class="eyebrow">NEW PASSWORD</span>
+        <h2>Choose a new password.</h2>
+        <label>New password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repeat it<input name="repeat" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="btn btn-red" type="submit">SAVE PASSWORD ↗</button>
+        <p class="note" id="reset-note" role="status"></p>
+      </form>
+
+      <div class="card" id="pending-view" hidden>
+        <span class="eyebrow" id="pending-eyebrow">WAITING FOR VERIFICATION</span>
+        <h2 id="pending-title">You're almost in.</h2>
+        <div id="pending-body">
+          <p>Your account was created, but an owner has to verify it before you can open the dashboard.</p>
+          <ol class="steps">
+            <li>Open a ticket in <a id="ticket-link" target="_blank" rel="noopener noreferrer">#🎫│d-access</a> on the RUSHED Discord.</li>
+            <li>Share the email you signed up with: <b id="pending-email"></b></li>
+            <li>Once an owner verifies you, refresh this page and you're in.</li>
+          </ol>
+        </div>
+        <div class="row-btns"><button class="btn btn-red" type="button" id="pending-refresh">CHECK AGAIN ↻</button><button class="btn btn-ghost" type="button" data-signout>SIGN OUT</button></div>
       </div>
+    </main>
+  </div>
+
+  <!-- ============ The dashboard ============ -->
+  <div class="app" id="app-view" hidden>
+    <aside class="side">
+      <a class="logo" href="../" title="RUSHED main site"><span class="logo-mark">R</span><span>RUSHED<b>.</b><small>SCOUTING</small></span></a>
+      <nav class="side-nav" aria-label="Dashboard">
+        <a href="#overview" data-view="overview"><i>◎</i>Overview</a>
+        <a href="#gems" data-view="gems"><i>◆</i>Hidden gems</a>
+        <a href="#submit" data-view="submit"><i>＋</i>Submit a game</a>
+        <a href="#submissions" data-view="submissions"><i>☰</i>Submissions <span class="badge" id="badge-subs" hidden></span></a>
+        <a href="#outreach" data-view="outreach"><i>✉</i>Outreach</a>
+        <a href="#leaderboard" data-view="leaderboard"><i>▲</i>Leaderboard</a>
+        <a href="#team" data-view="team"><i>☺</i>Team <span class="badge" id="badge-team" hidden></span></a>
+        <a href="#activity" data-view="activity" data-staff><i>⟲</i>Activity</a>
+        <a href="#settings" data-view="settings" data-owner><i>⚙</i>Settings</a>
+      </nav>
+      <div class="side-foot">
+        <a href="#account" data-view="account" class="me">
+          <span class="avatar" id="me-avatar">R</span>
+          <span><b id="me-name"></b><small id="me-role"></small></span>
+        </a>
+        <div class="side-tools">
+          <button class="icon-btn" type="button" id="theme-btn" title="Light / dark mode" aria-label="Switch light or dark mode">☾</button>
+          <button class="icon-btn" type="button" id="refresh-btn" title="Refresh data" aria-label="Refresh data">↻</button>
+          <button class="icon-btn" type="button" data-signout title="Sign out" aria-label="Sign out">⏻</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main" id="main">
+      <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
 
       <!-- Overview -->
-      <div class="panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+      <section class="view" id="view-overview" aria-labelledby="h-overview">
+        <header class="view-head"><div><span class="eyebrow">OVERVIEW</span><h1 id="h-overview">Hey <span id="hello-name"></span>.</h1></div>
+          <a class="btn btn-red" href="#submit">SUBMIT A GAME ↗</a></header>
         <div class="stats">
-          <div class="stat"><span>APPROVED GEMS</span><b id="st-games">0</b></div>
-          <div class="stat"><span>AVG CCU / 1K VISITS</span><b id="st-ratio">—</b></div>
-          <div class="stat"><span>WAITING FOR REVIEW</span><b id="st-pending">0</b></div>
-          <div class="stat"><span id="st-mine-label">YOUR APPROVED GAMES</span><b id="st-mine">0</b></div>
+          <div class="stat"><span>APPROVED GEMS</span><b id="st-gems">0</b></div>
+          <div class="stat"><span>AVG EFFICIENCY</span><b id="st-eff">—</b><small>CCU per 1K visits</small></div>
+          <div class="stat"><span id="st-pending-label">WAITING FOR REVIEW</span><b id="st-pending">0</b></div>
+          <div class="stat"><span>DEALS CLOSED</span><b id="st-deals">0</b></div>
         </div>
-        <div class="ov-grid">
-          <div class="box">
-            <div class="box-head"><b>Top gems right now</b><button class="link-btn" type="button" data-go="gems">SEE ALL ↗</button></div>
-            <ol class="top-list" id="top-list"></ol>
-            <p class="empty" id="top-empty">No approved games yet. <button class="link-btn" type="button" data-go="submit">SUBMIT THE FIRST ONE ↗</button></p>
-          </div>
-          <div class="box">
-            <div class="box-head"><b>Your watchlist</b><span class="hint">★ a game to save it here</span></div>
-            <ul class="watch-list" id="watch-list"></ul>
-            <p class="empty" id="watch-empty">Nothing saved yet.</p>
-          </div>
+        <div class="grid-2">
+          <div class="box"><div class="box-head"><b>Top gems by efficiency</b><a class="link" href="#gems">SEE ALL ↗</a></div><ol class="rank" id="ov-top"></ol><p class="empty" id="ov-top-empty">No approved games yet.</p></div>
+          <div class="box"><div class="box-head"><b>Fastest growing</b><span class="hint">CCU change, last 7 days</span></div><ol class="rank" id="ov-growth"></ol><p class="empty" id="ov-growth-empty">Growth shows up once a game's stats have been updated at least twice.</p></div>
         </div>
-        <div class="ov-grid ov-grid-2">
-          <div class="box">
-            <div class="box-head"><b>Latest activity</b><button class="link-btn" type="button" data-go="activity" data-admin>FULL LOG ↗</button></div>
-            <ul class="feed" id="feed"></ul>
-            <p class="empty" id="feed-empty">Nothing has happened yet.</p>
-          </div>
-          <div class="box box-discord" id="ov-discord">
-            <span class="value-num">DISCORD</span>
-            <b id="ov-discord-title">Connect Discord</b>
-            <p id="ov-discord-text">Link your Discord to sign in with one click.</p>
-            <button class="discord-btn" type="button" data-go="discord"><svg width="18" height="18" aria-hidden="true"><use href="#i-discord"/></svg> OPEN DISCORD SETTINGS</button>
-          </div>
+        <div class="grid-2">
+          <div class="box"><div class="box-head"><b>Your watchlist</b><span class="hint">★ a game to save it</span></div><ul class="rank" id="ov-watch"></ul><p class="empty" id="ov-watch-empty">Nothing saved yet.</p></div>
+          <div class="box"><div class="box-head"><b>Latest activity</b></div><ul class="feed" id="ov-feed"></ul><p class="empty" id="ov-feed-empty">Nothing yet.</p></div>
         </div>
-      </div>
+      </section>
 
       <!-- Hidden gems -->
-      <div class="panel" role="tabpanel" id="panel-gems" aria-labelledby="tab-gems" hidden>
-        <div class="gem-tools">
-          <label class="sr-wrap"><span class="sr">Search games</span><input id="gem-search" type="search" placeholder="Search games or scouts…"></label>
-          <label class="sr-wrap"><span class="sr">Genre</span><select id="gem-genre"><option value="">All genres</option></select></label>
-          <label class="sr-wrap"><span class="sr">Sort by</span>
-            <select id="gem-sort">
-              <option value="ratio">Best CCU / visits</option>
-              <option value="rating">Highest rated</option>
-              <option value="ccu">Most players now</option>
-              <option value="visits">Fewest visits</option>
-              <option value="new">Newest</option>
-            </select>
-          </label>
-          <label class="check check-inline"><input type="checkbox" id="gem-watch-only"> Watchlist only</label>
+      <section class="view" id="view-gems" hidden aria-labelledby="h-gems">
+        <header class="view-head"><div><span class="eyebrow">HIDDEN GEMS</span><h1 id="h-gems">High-potential games.</h1></div>
+          <button class="btn btn-ghost" type="button" id="gems-export">EXPORT CSV ↓</button></header>
+        <div class="filters">
+          <label class="f-search">Search<input id="f-q" type="search" placeholder="Game or scout"></label>
+          <label>Genre<select id="f-genre"></select></label>
+          <label>Min CCU<input id="f-ccu" type="number" min="0" placeholder="0"></label>
+          <label>Min growth %<input id="f-growth" type="number" placeholder="any"></label>
+          <label>Sort<select id="f-sort">
+            <option value="eff">Efficiency factor</option><option value="growth">Growth (7d)</option><option value="ccu">CCU</option>
+            <option value="visits">Fewest visits</option><option value="rating">Rating</option><option value="new">Newest</option></select></label>
+          <label class="check"><input id="f-watch" type="checkbox"> Watchlist only</label>
         </div>
-        <div class="gem-table" role="table" aria-label="Hidden gems">
-          <div class="gem-row gem-head" role="row"><span role="columnheader">Game</span><span role="columnheader">Genre</span><span role="columnheader">CCU</span><span role="columnheader">Visits</span><span role="columnheader">CCU / 1K visits</span><span role="columnheader">Rating</span><span role="columnheader"><span class="sr">Actions</span></span></div>
-          <div id="gem-rows" role="rowgroup"></div>
+        <div class="table" role="table" aria-label="Approved games">
+          <div class="tr th" role="row"><span role="columnheader">Game</span><span role="columnheader">Genre</span><span role="columnheader">CCU</span><span role="columnheader">Visits</span><span role="columnheader">Efficiency</span><span role="columnheader">Growth 7d</span><span role="columnheader">Outreach</span><span role="columnheader"><span class="sr">Actions</span></span></div>
+          <div id="gems-rows" role="rowgroup"></div>
         </div>
-        <p class="empty" id="gem-empty">No approved games yet — once an admin approves a submission it shows up here.</p>
-      </div>
+        <p class="empty" id="gems-empty"></p>
+      </section>
 
       <!-- Submit -->
-      <div class="panel" role="tabpanel" id="panel-submit" aria-labelledby="tab-submit" hidden>
-        <div class="submit-grid">
-          <form class="talk-form" id="submit-form" novalidate>
-            <input type="hidden" name="editing">
-            <label>Game name<input name="name" type="text" required maxlength="80" placeholder="What's the game called?"></label>
-            <label>Roblox link or place ID<input name="link" type="text" required maxlength="200" placeholder="https://www.roblox.com/games/…"></label>
-            <div class="two">
-              <label>Genre<select name="genre"><option>Simulator</option><option>Tycoon</option><option>Obby</option><option>Horror</option><option>RPG</option><option>Fighting</option><option>Roleplay</option><option>Shooter</option><option>Racing</option><option>Other</option></select></label>
-              <label>Found on<select name="found"><option>Roblox</option><option>Marketplace</option><option>Discord</option><option>Social media</option><option>Other</option></select></label>
+      <section class="view" id="view-submit" hidden aria-labelledby="h-submit">
+        <header class="view-head"><div><span class="eyebrow">SUBMIT A GAME</span><h1 id="h-submit">Found something special?</h1></div></header>
+        <form class="box form" id="submit-form" novalidate>
+          <div class="form-grid">
+            <label class="span-2">Roblox game link or place ID<input name="link" required placeholder="https://www.roblox.com/games/…"></label>
+            <label>Game name<input name="name" required maxlength="120"></label>
+            <label>Genre<select name="genre" class="genre-select" required></select></label>
+            <label>Current CCU (playing)<input name="ccu" type="number" min="0" required></label>
+            <label>Total visits<input name="visits" type="number" min="0" required></label>
+            <label>Discord invite<input name="discord_url" type="url" placeholder="https://discord.gg/…"></label>
+            <label>X / Twitter<input name="x_url" type="url" placeholder="https://x.com/…"></label>
+          </div>
+          <p class="live-eff" id="submit-eff" aria-live="polite">Efficiency factor: —</p>
+          <details class="more"><summary>Extra analytics (optional)</summary>
+            <div class="form-grid">
+              <label>Avg playtime (minutes)<input name="avg_playtime_min" type="number" min="0" step="0.1"></label>
+              <label>Day-1 retention (%)<input name="d1_retention" type="number" min="0" max="100" step="0.1"></label>
+              <label>Est. monthly Robux<input name="est_monthly_robux" type="number" min="0"></label>
             </div>
-            <div class="two">
-              <label>Players now (CCU)<input name="ccu" type="number" min="0" step="1" required placeholder="e.g. 320"></label>
-              <label>Total visits<input name="visits" type="number" min="1" step="1" required placeholder="e.g. 85000"></label>
-            </div>
-            <div class="two">
-              <label>Developer / group <small>(optional)</small><input name="dev" type="text" maxlength="60" placeholder="Who made it?"></label>
-              <label>Favourites <small>(optional)</small><input name="favs" type="number" min="0" step="1" placeholder="e.g. 1200"></label>
-            </div>
-            <label>Why does it have potential?<textarea name="notes" rows="5" maxlength="1000" placeholder="Core loop, retention, who's behind it, what could be better…"></textarea></label>
-            <div class="form-row">
-              <button class="cta form-send" type="submit" id="submit-btn">SUBMIT FOR SCOUTING <span>↗</span></button>
-              <button class="ghost-btn" type="button" id="cancel-edit" hidden>CANCEL EDIT</button>
-            </div>
-            <p class="form-note" id="submit-note" role="status" aria-live="polite"></p>
-          </form>
-          <aside class="side-card side-card-ink">
-            <span class="value-num">WHAT MAKES A GEM</span>
-            <ul>
-              <li>Lots of players now compared to its total visits</li>
-              <li>A clear, fun core loop</li>
-              <li>Room for updates and a community</li>
-              <li>A team that keeps improving it</li>
-            </ul>
-            <p class="ratio-preview">Ratio for this game: <b id="ratio-preview">—</b> CCU per 1K visits</p>
-            <p class="ratio-verdict" id="ratio-verdict"></p>
-          </aside>
-        </div>
-      </div>
+          </details>
+          <label>Notes<textarea name="notes" rows="4" maxlength="2000" placeholder="Why is this one worth a look? Owner contact, update schedule, anything useful."></textarea></label>
+          <div class="row-btns"><button class="btn btn-red" type="submit">SEND FOR REVIEW ↗</button></div>
+          <p class="note" id="submit-note" role="status"></p>
+        </form>
+      </section>
 
       <!-- Submissions -->
-      <div class="panel" role="tabpanel" id="panel-subs" aria-labelledby="tab-subs" hidden>
-        <div class="sub-filter" role="group" aria-label="Filter submissions">
-          <button type="button" data-filter="all" aria-pressed="true">All</button>
-          <button type="button" data-filter="pending" aria-pressed="false">Waiting</button>
-          <button type="button" data-filter="approved" aria-pressed="false">Approved</button>
-          <button type="button" data-filter="rejected" aria-pressed="false">Passed</button>
-          <label class="sub-search"><span class="sr">Search submissions</span><input type="search" id="sub-search" placeholder="Search…"></label>
-          <button type="button" class="ghost-btn export-btn" id="export-subs" data-admin>DOWNLOAD SPREADSHEET ↓</button>
+      <section class="view" id="view-submissions" hidden aria-labelledby="h-subs">
+        <header class="view-head"><div><span class="eyebrow">SUBMISSIONS</span><h1 id="h-subs">Review queue.</h1></div></header>
+        <div class="chips" id="sub-chips" role="group" aria-label="Filter by status">
+          <button type="button" data-f="pending" aria-pressed="true">Waiting</button><button type="button" data-f="approved" aria-pressed="false">Approved</button>
+          <button type="button" data-f="rejected" aria-pressed="false">Passed</button><button type="button" data-f="all" aria-pressed="false">All</button>
+          <label class="check" id="sub-mine-wrap"><input id="sub-mine" type="checkbox"> Only mine</label>
         </div>
-        <div class="subs" id="subs"></div>
-        <p class="empty" id="subs-empty" hidden>No submissions here yet. <button class="link-btn" type="button" data-go="submit">SUBMIT A GAME ↗</button></p>
-      </div>
+        <div class="cards" id="subs"></div>
+        <p class="empty" id="subs-empty">Nothing here.</p>
+      </section>
+
+      <!-- Outreach -->
+      <section class="view" id="view-outreach" hidden aria-labelledby="h-out">
+        <header class="view-head"><div><span class="eyebrow">OUTREACH</span><h1 id="h-out">Who's been contacted.</h1></div></header>
+        <p class="muted">Track every approved game from first message to closed deal. Change a game's status here or in its details.</p>
+        <div class="board" id="outreach"></div>
+      </section>
 
       <!-- Leaderboard -->
-      <div class="panel" role="tabpanel" id="panel-board" aria-labelledby="tab-board" hidden>
-        <p class="panel-intro">Scouts ranked by approved games. Every approved game is worth 3 points, every game sent in 1 point, and each star of an admin's rating 1 more.</p>
-        <ol class="board" id="board"></ol>
-        <p class="empty" id="board-empty">No scouts have submitted games yet.</p>
-      </div>
+      <section class="view" id="view-leaderboard" hidden aria-labelledby="h-lb">
+        <header class="view-head"><div><span class="eyebrow">LEADERBOARD</span><h1 id="h-lb">Top scouts.</h1></div></header>
+        <p class="muted">3 points per approved game, 1 per submission, plus review stars and 5 per closed deal.</p>
+        <ol class="leader" id="leader"></ol>
+        <p class="empty" id="leader-empty">No submissions yet.</p>
+      </section>
 
-      <!-- Discord -->
-      <div class="panel" role="tabpanel" id="panel-discord" aria-labelledby="tab-discord" hidden>
-        <div class="submit-grid">
-          <div class="box">
-            <div class="box-head"><b>Your Discord</b></div>
-            <div class="discord-me" id="discord-me"></div>
-            <p class="form-note" id="discord-note" role="status" aria-live="polite"></p>
-          </div>
-          <div class="box box-discord">
-            <span class="value-num">WHAT YOU GET</span>
-            <b>Discord built in</b>
-            <ul class="discord-perks">
-              <li>Sign in with one click — no password to remember</li>
-              <li>Your Discord name and picture on the dashboard</li>
-              <li>New submissions and review results posted in your server</li>
-            </ul>
-          </div>
+      <!-- Team -->
+      <section class="view" id="view-team" hidden aria-labelledby="h-team">
+        <header class="view-head"><div><span class="eyebrow">TEAM</span><h1 id="h-team">The scouting team.</h1></div></header>
+        <div class="box" id="pending-box" data-owner>
+          <div class="box-head"><b>Waiting for verification</b><span class="hint">Check their ticket in #🎫│d-access matches the email</span></div>
+          <div id="pending-list"></div>
+          <p class="empty" id="pending-empty">No one is waiting. 🎉</p>
         </div>
-      </div>
+        <div class="table team-table" role="table" aria-label="Team members">
+          <div class="tr th" role="row"><span role="columnheader">Member</span><span role="columnheader">Discord</span><span role="columnheader">Roblox</span><span role="columnheader">Role</span><span role="columnheader">Status</span><span role="columnheader">Joined</span></div>
+          <div id="team-rows" role="rowgroup"></div>
+        </div>
+      </section>
 
-      <!-- Activity (admin) -->
-      <div class="panel" role="tabpanel" id="panel-activity" aria-labelledby="tab-activity" hidden data-admin>
-        <div class="box-head"><p class="panel-intro">Everything that happened on this dashboard, newest first.</p><button class="ghost-btn" type="button" id="clear-activity">CLEAR LOG</button></div>
-        <ul class="feed feed-full" id="activity"></ul>
-        <p class="empty" id="activity-empty">Nothing has happened yet.</p>
-      </div>
+      <!-- Activity -->
+      <section class="view" id="view-activity" hidden aria-labelledby="h-act">
+        <header class="view-head"><div><span class="eyebrow">ACTIVITY</span><h1 id="h-act">Everything that happened.</h1></div></header>
+        <ul class="feed feed-full" id="feed-full"></ul>
+      </section>
 
-      <!-- Scouts (admin) -->
-      <div class="panel" role="tabpanel" id="panel-scouts" aria-labelledby="tab-scouts" hidden data-admin>
-        <div class="submit-grid">
-          <form class="talk-form" id="scout-form" novalidate autocomplete="off">
-            <span class="value-num">ADD A SCOUT</span>
-            <label>Username<input name="username" type="text" required maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. their Roblox name"></label>
-            <label>Password<input name="password" type="text" required minlength="6" maxlength="64" autocomplete="new-password" placeholder="At least 6 characters"></label>
-            <label>Role<select name="role"><option value="scout">Scout</option><option value="admin">Admin</option></select></label>
-            <button class="cta form-send" type="submit">CREATE ACCOUNT <span>↗</span></button>
-            <p class="form-note" id="scout-note" role="status" aria-live="polite"></p>
+      <!-- Settings -->
+      <section class="view" id="view-settings" hidden aria-labelledby="h-set">
+        <header class="view-head"><div><span class="eyebrow">SETTINGS</span><h1 id="h-set">Owner settings.</h1></div></header>
+        <form class="box form" id="settings-form" novalidate>
+          <div class="box-head"><b>Discord notifications</b><span class="hint" id="hook-state"></span></div>
+          <p class="muted">Paste a channel webhook (Discord → channel settings → Integrations → Webhooks → Copy URL). It's stored privately in the database. Nobody can read it back from the website.</p>
+          <label>Webhook URL<input name="webhook" type="url" placeholder="Leave empty to keep the current one"></label>
+          <div class="checks">
+            <label class="check"><input type="checkbox" name="n_signup"> New sign-ups &amp; verifications</label>
+            <label class="check"><input type="checkbox" name="n_submit"> New submissions</label>
+            <label class="check"><input type="checkbox" name="n_review"> Reviews</label>
+            <label class="check"><input type="checkbox" name="n_deal"> Closed deals</label>
+          </div>
+          <div class="row-btns"><button class="btn btn-red" type="submit">SAVE ↗</button><button class="btn btn-ghost" type="button" id="hook-test">SEND TEST</button><button class="btn btn-ghost" type="button" id="hook-clear">REMOVE WEBHOOK</button></div>
+          <p class="note" id="settings-note" role="status"></p>
+        </form>
+        <div class="box form">
+          <div class="box-head"><b>Import from the old dashboard</b></div>
+          <p class="muted">Had games in the old browser-only dashboard? Open this page in the browser you used it in and they'll show up below, or load a backup file you exported from it.</p>
+          <div class="row-btns"><button class="btn btn-red" type="button" id="import-local" hidden>IMPORT GAMES FOUND IN THIS BROWSER</button>
+          <label class="file-btn btn btn-ghost">CHOOSE BACKUP FILE<input type="file" id="import-file" accept="application/json,.json" hidden></label></div>
+          <p class="note" id="import-note" role="status"></p>
+        </div>
+      </section>
+
+      <!-- Account -->
+      <section class="view" id="view-account" hidden aria-labelledby="h-acc">
+        <header class="view-head"><div><span class="eyebrow">MY ACCOUNT</span><h1 id="h-acc">Your profile.</h1></div></header>
+        <div class="grid-2">
+          <form class="box form" id="profile-form" novalidate>
+            <div class="box-head"><b>Profile</b><span class="hint" id="acc-email"></span></div>
+            <label>Display name<input name="username" required maxlength="40"></label>
+            <label>Discord username<input name="discord" maxlength="40"></label>
+            <label>Roblox username<input name="roblox" maxlength="40"></label>
+            <div class="row-btns"><button class="btn btn-red" type="submit">SAVE ↗</button></div>
+            <p class="note" id="profile-note" role="status"></p>
           </form>
-          <div class="box">
-            <div class="box-head"><b>Accounts</b><span class="hint">Removing a scout also removes their games</span></div>
-            <ul class="accounts" id="accounts"></ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Settings (admin) -->
-      <div class="panel" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings" hidden data-admin>
-        <div class="settings-grid">
-          <form class="talk-form box" id="settings-form" novalidate>
-            <span class="value-num">DISCORD CONNECTION</span>
-            <label>Discord application Client ID<input name="clientId" type="text" inputmode="numeric" maxlength="24" placeholder="e.g. 123456789012345678"></label>
-            <p class="hint-block">Create an app at discord.com/developers → OAuth2, then add this redirect address:<br><code id="redirect-url"></code> <button class="link-btn" type="button" id="copy-redirect">COPY</button></p>
-            <label>Channel webhook URL<input name="webhook" type="url" maxlength="300" placeholder="https://discord.com/api/webhooks/…"></label>
-            <p class="hint-block">In Discord: channel settings → Integrations → Webhooks → New webhook → Copy URL.</p>
-            <label class="check"><input type="checkbox" name="notifySubmit"> Post new submissions</label>
-            <label class="check"><input type="checkbox" name="notifyReview"> Post approvals and passes</label>
-            <label class="check"><input type="checkbox" name="notifyScout"> Post when a scout joins</label>
-            <div class="form-row">
-              <button class="cta form-send" type="submit">SAVE SETTINGS <span>↗</span></button>
-              <button class="ghost-btn" type="button" id="test-webhook">SEND A TEST MESSAGE</button>
-            </div>
-            <p class="form-note" id="settings-note" role="status" aria-live="polite"></p>
+          <form class="box form" id="password-form" novalidate>
+            <div class="box-head"><b>Change password</b></div>
+            <input class="sr" name="email" type="email" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
+            <label>New password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+            <label>Repeat it<input name="repeat" type="password" autocomplete="new-password" minlength="8" required></label>
+            <div class="row-btns"><button class="btn btn-red" type="submit">CHANGE PASSWORD ↗</button></div>
+            <p class="note" id="password-note" role="status"></p>
           </form>
-          <div class="settings-side">
-            <div class="box">
-              <span class="value-num">BACKUP</span>
-              <p class="hint-block">Save everything (accounts, games, reviews, settings) to a file, or load a file on another device.</p>
-              <div class="form-row">
-                <button class="ghost-btn" type="button" id="backup-save">SAVE BACKUP ↓</button>
-                <label class="ghost-btn file-btn">LOAD BACKUP ↑<input type="file" id="backup-load" accept="application/json,.json"></label>
-              </div>
-              <p class="form-note" id="backup-note" role="status" aria-live="polite"></p>
-            </div>
-            <div class="box box-danger">
-              <span class="value-num">START OVER</span>
-              <p class="hint-block">Delete every submission and the activity log. Accounts stay.</p>
-              <button class="ghost-btn danger-btn" type="button" id="wipe-subs">DELETE ALL SUBMISSIONS</button>
-            </div>
-          </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
+  </div>
 
-  <!-- Game details / review dialog -->
+  <!-- Game details -->
   <dialog class="dlg" id="dlg" aria-labelledby="dlg-title">
-    <form method="dialog" class="dlg-inner" id="dlg-form">
-      <button class="dlg-x" value="cancel" aria-label="Close">×</button>
-      <span class="value-num" id="dlg-kicker">GAME</span>
-      <h2 id="dlg-title">Game</h2>
-      <p class="sub-meta" id="dlg-meta"></p>
-      <div class="dlg-stats" id="dlg-stats"></div>
-      <p class="sub-notes" id="dlg-notes"></p>
-      <div class="dlg-review" id="dlg-review"></div>
-      <fieldset class="review-box" id="review-box" hidden>
-        <legend class="value-num">YOUR REVIEW</legend>
-        <div class="stars" role="radiogroup" aria-label="Potential rating">
-          <label><input type="radio" name="rating" value="1"><span>★</span><b class="sr">1 star</b></label>
-          <label><input type="radio" name="rating" value="2"><span>★</span><b class="sr">2 stars</b></label>
-          <label><input type="radio" name="rating" value="3"><span>★</span><b class="sr">3 stars</b></label>
-          <label><input type="radio" name="rating" value="4"><span>★</span><b class="sr">4 stars</b></label>
-          <label><input type="radio" name="rating" value="5"><span>★</span><b class="sr">5 stars</b></label>
-        </div>
-        <label class="talk-label">Comment for the scout <small>(optional)</small><textarea name="comment" rows="3" maxlength="500"></textarea></label>
-        <div class="form-row">
-          <button class="mini mini-yes" type="button" id="dlg-approve">Approve</button>
-          <button class="mini" type="button" id="dlg-pass">Pass</button>
-        </div>
-      </fieldset>
-      <div class="form-row dlg-actions" id="dlg-actions"></div>
-    </form>
+    <div class="dlg-in">
+      <header class="dlg-head"><div><span class="eyebrow" id="dlg-status"></span><h2 id="dlg-title"></h2><p class="muted" id="dlg-sub"></p></div>
+        <button class="icon-btn" type="button" id="dlg-close" aria-label="Close">✕</button></header>
+      <div id="dlg-body"></div>
+    </div>
   </dialog>
 
-<!-- @footer -->
-  <script src="../config.js?v={{v}}"></script>
-  <script src="../dashboard.js?v={{v}}" defer></script>
+  <script src="config.js?v={{v}}"></script>
+  <script src="vendor/supabase.js?v={{v}}"></script>
+  <script src="app.js?v={{v}}"></script>
 </body>
 </html>

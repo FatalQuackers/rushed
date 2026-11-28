@@ -9,7 +9,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const src = join(root, 'src');
 const dist = join(root, 'dist');
 const partialsDir = join(src, '_partials');
-const VERSION = '27'; // bump to make browsers fetch fresh CSS/JS
+const VERSION = '28'; // bump to make browsers fetch fresh CSS/JS
 
 const partial = name => readFileSync(join(partialsDir, `${name}.html`), 'utf8');
 const parts = { head: partial('head'), header: partial('header'), footer: partial('footer'), team: partial('team') };
@@ -53,6 +53,12 @@ function walk(dir) {
 if (existsSync(dist)) rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 walk(src);
+
+// The dashboard talks to Supabase with the official client, copied in from node_modules.
+const supabaseClient = join(root, 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js');
+if (!existsSync(supabaseClient)) { console.error('Build failed: run npm ci first (Supabase client missing)'); process.exit(1); }
+mkdirSync(join(dist, 'dashboard', 'vendor'), { recursive: true });
+copyFileSync(supabaseClient, join(dist, 'dashboard', 'vendor', 'supabase.js'));
 
 const pages = [];
 (function list(dir) {
