@@ -9,7 +9,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const src = join(root, 'src');
 const dist = join(root, 'dist');
 const partialsDir = join(src, '_partials');
-const VERSION = '28'; // bump to make browsers fetch fresh CSS/JS
+const VERSION = '29'; // bump to make browsers fetch fresh CSS/JS
 
 const partial = name => readFileSync(join(partialsDir, `${name}.html`), 'utf8');
 const parts = { head: partial('head'), header: partial('header'), footer: partial('footer'), team: partial('team') };

@@ -11,7 +11,8 @@
 --   * All of these rules are enforced by the database itself, not the web page.
 -- =====================================================================
 
-create extension if not exists pg_net;   -- lets the database post to Discord
+create extension if not exists pg_net;   -- lets the database talk to Discord and Roblox
+create extension if not exists pg_cron;  -- runs the Roblox sync every few minutes
 
 -- ---------- tables ----------------------------------------------------
 create table if not exists public.profiles (
@@ -55,6 +56,8 @@ create table if not exists public.games (
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
+
+alter table public.games add column if not exists universe_id bigint;
 
 create table if not exists public.game_stats (
   id          bigint generated always as identity primary key,
@@ -207,7 +210,7 @@ create or replace function public.guard_game() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare staff boolean := public.is_staff(); mine boolean;
 begin
-  if auth.uid() is null then return new; end if;
+  if auth.uid() is null or current_setting('rushed.system', true) = 'on' then return new; end if;
   if tg_op = 'INSERT' then
     if not staff then
       new.submitted_by := auth.uid(); new.status := 'pending'; new.rating := null;
@@ -234,6 +237,7 @@ begin
     -- pg_trigger_depth() > 1 means a new stats snapshot is updating the numbers
     if not (staff or (mine and old.status = 'pending') or pg_trigger_depth() > 1) then new.ccu := old.ccu; new.visits := old.visits; end if;
   end if;
+  if new.link is distinct from old.link then new.universe_id := null; else new.universe_id := old.universe_id; end if;
   if new.contact_status is distinct from old.contact_status then
     new.contacted_by := auth.uid(); new.contacted_at := now();
   else
@@ -381,3 +385,280 @@ grant select, insert on public.game_stats to authenticated;
 grant select on public.activity to authenticated;
 revoke execute on function public.get_settings(), public.save_settings(text, boolean, boolean, boolean, boolean), public.test_webhook(), public.member_emails() from public, anon;
 grant execute on function public.get_settings(), public.save_settings(text, boolean, boolean, boolean, boolean), public.test_webhook(), public.member_emails() to authenticated;
+
+-- =====================================================================
+-- ROBLOX SYNC
+-- The database pulls public game data from Roblox by itself every 5 minutes:
+--   * finds games on Roblox's discovery lists and search (for Suggestions)
+--   * refreshes CCU / visits / likes / last update for every game it knows
+--   * adds a stats snapshot to every game on the dashboard about once an hour
+-- =====================================================================
+create table if not exists public.roblox_games (
+  universe_id   bigint primary key,
+  place_id      bigint,
+  name          text,
+  creator_name  text,
+  creator_type  text,
+  creator_id    bigint,
+  genre         text,
+  subgenre      text,
+  playing       integer not null default 0,
+  visits        bigint,
+  favorites     bigint,
+  up_votes      bigint,
+  down_votes    bigint,
+  max_players   integer,
+  created       timestamptz,
+  updated       timestamptz,
+  growth_7d     numeric,          -- % change in CCU vs about a week ago
+  sources       text[] not null default '{}',
+  first_seen    timestamptz not null default now(),
+  last_seen     timestamptz not null default now(),
+  last_synced   timestamptz,
+  dismissed_by  uuid references public.profiles(id) on delete set null,
+  dismissed_at  timestamptz
+);
+create index if not exists roblox_games_place_idx on public.roblox_games (place_id);
+create index if not exists roblox_games_sync_idx on public.roblox_games (last_synced nulls first);
+
+create table if not exists public.roblox_snapshots (
+  universe_id bigint not null references public.roblox_games(universe_id) on delete cascade,
+  at          timestamptz not null default now(),
+  playing     integer not null,
+  visits      bigint
+);
+create index if not exists roblox_snapshots_idx on public.roblox_snapshots (universe_id, at);
+
+create table if not exists public.roblox_requests (   -- requests waiting for Roblox to answer
+  id      bigint primary key,
+  kind    text not null,
+  meta    jsonb not null default '{}',
+  sent_at timestamptz not null default now()
+);
+
+create table if not exists public.roblox_state (
+  id         boolean primary key default true check (id),
+  last_scan  timestamptz,
+  last_error text,
+  last_ok    timestamptz
+);
+insert into public.roblox_state (id) values (true) on conflict do nothing;
+
+create or replace function public.roblox_get(url text, kind text, meta jsonb default '{}')
+returns void language plpgsql security definer set search_path = public as $$
+declare rid bigint;
+begin
+  rid := net.http_get(url := url, headers := '{"Accept":"application/json"}'::jsonb, timeout_milliseconds := 20000);
+  insert into roblox_requests (id, kind, meta) values (rid, kind, meta) on conflict (id) do nothing;
+end $$;
+
+-- Ask Roblox for new games: discovery lists + genre searches.
+create or replace function public.roblox_scan() returns void
+language plpgsql security definer set search_path = public as $$
+declare sid text := gen_random_uuid()::text; s text;
+begin
+  foreach s in array array['up-and-coming','top-rated','top-revisited','fun-with-friends','top-trending','top-earning','top-playing-now'] loop
+    perform roblox_get(format('https://apis.roblox.com/explore-api/v1/get-sort-content?sessionId=%s&sortId=%s&device=computer&country=all', sid, s), 'list', jsonb_build_object('source', s));
+  end loop;
+  foreach s in array array['obby','tycoon','simulator','horror','tower defense','roleplay','fighting','survival','incremental','racing','anime','pets','escape','clicker','rng','shooter','puzzle','party'] loop
+    perform roblox_get(format('https://apis.roblox.com/search-api/omni-search?searchQuery=%s&sessionId=%s&pageType=all', replace(s, ' ', '%20'), sid), 'list', jsonb_build_object('source', 'search: ' || s));
+  end loop;
+  update roblox_state set last_scan = now() where id;
+end $$;
+
+-- Ask Roblox for full details of games that are due (dashboard games hourly, others every 6 hours).
+create or replace function public.roblox_refresh(max_batches int default 8) returns void
+language plpgsql security definer set search_path = public as $$
+declare ids bigint[]; n int := 0;
+begin
+  -- dashboard games we don't know the universe of yet
+  perform roblox_get(format('https://apis.roblox.com/universes/v1/places/%s/universe', g.link), 'place', jsonb_build_object('place_id', g.link::bigint))
+    from games g where g.universe_id is null and g.link ~ '^\d+$'
+      and not exists (select 1 from roblox_requests r where r.kind = 'place' and r.meta->>'place_id' = g.link)
+    limit 20;
+  loop
+    exit when n >= max_batches;
+    select array_agg(universe_id) into ids from (
+      select r.universe_id from roblox_games r
+       where (r.last_synced is null
+          or (exists (select 1 from games g where g.universe_id = r.universe_id) and r.last_synced < now() - interval '55 minutes')
+          or (r.last_seen > now() - interval '7 days' and r.last_synced < now() - interval '6 hours'))
+         and not exists (select 1 from roblox_requests q where q.kind = 'details' and q.meta->'ids' @> to_jsonb(r.universe_id))
+       order by (exists (select 1 from games g where g.universe_id = r.universe_id)) desc, r.last_synced nulls first
+       limit 50) t;
+    exit when ids is null;
+    perform roblox_get('https://games.roblox.com/v1/games?universeIds=' || array_to_string(ids, ','), 'details', jsonb_build_object('ids', to_jsonb(ids)));
+    n := n + 1;
+  end loop;
+end $$;
+
+-- Read whatever Roblox has answered so far.
+create or replace function public.roblox_process() returns int
+language plpgsql security definer set search_path = public as $$
+declare q record; body jsonb; g jsonb; done int := 0; uid bigint; prev record;
+begin
+  perform set_config('rushed.system', 'on', true);
+  for q in select r.*, h.status_code, h.content, h.error_msg, h.timed_out
+             from roblox_requests r join net._http_response h on h.id = r.id
+            order by r.id loop
+    done := done + 1;
+    delete from roblox_requests where id = q.id;
+    if q.status_code is distinct from 200 then
+      update roblox_state set last_error = format('%s → %s %s', q.kind, coalesce(q.status_code::text, 'no answer'), left(coalesce(q.error_msg, q.content, ''), 200)) where id;
+      continue;
+    end if;
+    begin body := q.content::jsonb; exception when others then continue; end;
+    update roblox_state set last_ok = now() where id;
+
+    if q.kind = 'list' then
+      for g in select x from jsonb_path_query(body, '$.games[*]') x
+               union all select x from jsonb_path_query(body, '$.searchResults[*].contents[*] ? (@.contentType == "Game")') x loop
+        continue when (g->>'universeId') is null or coalesce((g->>'isSponsored')::boolean, false);
+        insert into roblox_games as r (universe_id, place_id, name, genre, playing, up_votes, down_votes, sources)
+        values ((g->>'universeId')::bigint, (g->>'rootPlaceId')::bigint, g->>'name', g->>'genreL1',
+                coalesce((g->>'playerCount')::int, 0), (g->>'totalUpVotes')::bigint, (g->>'totalDownVotes')::bigint, array[q.meta->>'source'])
+        on conflict (universe_id) do update set
+          playing = excluded.playing, up_votes = coalesce(excluded.up_votes, r.up_votes), down_votes = coalesce(excluded.down_votes, r.down_votes),
+          name = coalesce(excluded.name, r.name), last_seen = now(),
+          sources = case when excluded.sources[1] = any(r.sources) then r.sources else (r.sources || excluded.sources)[greatest(1, cardinality(r.sources) - 8):] end;
+      end loop;
+
+    elsif q.kind = 'details' then
+      for g in select x from jsonb_path_query(body, '$.data[*]') x loop
+        uid := (g->>'id')::bigint;
+        insert into roblox_games as r (universe_id, place_id, name, creator_name, creator_type, creator_id, genre, subgenre, playing, visits,
+                                       favorites, max_players, created, updated, last_synced)
+        values (uid, (g->>'rootPlaceId')::bigint, g->>'name', g#>>'{creator,name}', g#>>'{creator,type}', (g#>>'{creator,id}')::bigint,
+                nullif(g->>'genre_l1', ''), nullif(g->>'genre_l2', ''), coalesce((g->>'playing')::int, 0), (g->>'visits')::bigint,
+                (g->>'favoritedCount')::bigint, (g->>'maxPlayers')::int, (g->>'created')::timestamptz, (g->>'updated')::timestamptz, now())
+        on conflict (universe_id) do update set
+          place_id = excluded.place_id, name = excluded.name, creator_name = excluded.creator_name, creator_type = excluded.creator_type,
+          creator_id = excluded.creator_id, genre = coalesce(excluded.genre, r.genre), subgenre = excluded.subgenre, playing = excluded.playing,
+          visits = excluded.visits, favorites = excluded.favorites, max_players = excluded.max_players, created = excluded.created,
+          updated = excluded.updated, last_synced = now();
+        insert into roblox_snapshots (universe_id, playing, visits) values (uid, coalesce((g->>'playing')::int, 0), (g->>'visits')::bigint);
+        select s.playing into prev from roblox_snapshots s
+         where s.universe_id = uid and s.at <= now() - interval '1 day'
+         order by abs(extract(epoch from (now() - interval '7 days') - s.at)) limit 1;
+        update roblox_games set growth_7d = case when prev.playing > 0 then round((playing - prev.playing) * 100.0 / prev.playing, 1) end
+         where universe_id = uid;
+        -- dashboard games get a real stats snapshot (charts + growth) about once an hour
+        insert into game_stats (game_id, ccu, visits, recorded_by)
+        select d.id, coalesce((g->>'playing')::int, 0), coalesce((g->>'visits')::bigint, d.visits), null
+          from games d where d.universe_id = uid
+           and not exists (select 1 from game_stats s where s.game_id = d.id and s.recorded_at > now() - interval '50 minutes');
+      end loop;
+
+    elsif q.kind in ('place', 'lookup') then
+      uid := (body->>'universeId')::bigint;
+      continue when uid is null;
+      update games set universe_id = uid where link = q.meta->>'place_id' and universe_id is null;
+      insert into roblox_games (universe_id, place_id) values (uid, (q.meta->>'place_id')::bigint) on conflict (universe_id) do nothing;
+      if not exists (select 1 from roblox_requests r where r.kind = 'details' and r.meta->'ids' @> to_jsonb(uid)) then
+        perform roblox_get('https://games.roblox.com/v1/games?universeIds=' || uid, 'details', jsonb_build_object('ids', jsonb_build_array(uid)));
+      end if;
+    end if;
+  end loop;
+  -- forget requests Roblox never answered, and old snapshots
+  delete from roblox_requests where sent_at < now() - interval '30 minutes';
+  delete from roblox_snapshots where at < now() - interval '21 days';
+  return done;
+end $$;
+
+-- Runs every 5 minutes (and when staff press "Scan now").
+create or replace function public.roblox_tick(force_scan boolean default false) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare st roblox_state; got int;
+begin
+  if auth.uid() is not null and not public.is_staff() then raise exception 'Staff only'; end if;
+  got := roblox_process();
+  select * into st from roblox_state where id;
+  if force_scan or st.last_scan is null or st.last_scan < now() - interval '6 hours' then perform roblox_scan(); end if;
+  perform roblox_refresh(case when force_scan then 20 else 8 end);
+  return jsonb_build_object('processed', got, 'waiting', (select count(*) from roblox_requests));
+end $$;
+
+-- Submit form: look up a Roblox place. Call it again every second or two until it returns a game.
+create or replace function public.roblox_lookup(place bigint) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r roblox_games;
+begin
+  if not public.is_approved() then raise exception 'Not allowed'; end if;
+  perform roblox_process();
+  select * into r from roblox_games where place_id = place and last_synced > now() - interval '15 minutes' limit 1;
+  if found then return to_jsonb(r); end if;
+  select * into r from roblox_games where place_id = place limit 1;
+  if found then
+    if not exists (select 1 from roblox_requests q where q.kind = 'details' and q.meta->'ids' @> to_jsonb(r.universe_id)) then
+      perform roblox_get('https://games.roblox.com/v1/games?universeIds=' || r.universe_id, 'details', jsonb_build_object('ids', jsonb_build_array(r.universe_id)));
+    end if;
+  elsif not exists (select 1 from roblox_requests q where q.kind in ('place','lookup') and q.meta->>'place_id' = place::text) then
+    perform roblox_get(format('https://apis.roblox.com/universes/v1/places/%s/universe', place), 'lookup', jsonb_build_object('place_id', place));
+  end if;
+  return null;
+end $$;
+
+create or replace function public.roblox_status() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select case when public.is_approved() then jsonb_build_object(
+    'last_scan', last_scan, 'last_ok', last_ok, 'last_error', last_error,
+    'known', (select count(*) from roblox_games), 'waiting', (select count(*) from roblox_requests)) end
+  from roblox_state where id
+$$;
+
+-- Suggestions: hide / unhide a game for everyone
+create or replace function public.roblox_dismiss(uid bigint, hide boolean default true) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_approved() then raise exception 'Not allowed'; end if;
+  update roblox_games set dismissed_by = case when hide then auth.uid() end, dismissed_at = case when hide then now() end where universe_id = uid;
+end $$;
+
+-- New or re-linked dashboard game → find its universe right away
+create or replace function public.roblox_link_game() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.universe_id is null and new.link ~ '^\d+$' then
+    perform roblox_get(format('https://apis.roblox.com/universes/v1/places/%s/universe', new.link), 'place', jsonb_build_object('place_id', new.link::bigint));
+  elsif new.universe_id is not null then
+    insert into roblox_games (universe_id, place_id) values (new.universe_id, new.link::bigint) on conflict (universe_id) do nothing;
+  end if;
+  return null;
+exception when others then return null;
+end $$;
+drop trigger if exists roblox_link_game on public.games;
+create trigger roblox_link_game after insert or update of link on public.games
+  for each row execute function public.roblox_link_game();
+
+alter table public.roblox_games     enable row level security;
+alter table public.roblox_snapshots enable row level security;
+alter table public.roblox_requests  enable row level security;
+alter table public.roblox_state     enable row level security;
+drop policy if exists "team reads roblox games" on public.roblox_games;
+drop policy if exists "team reads roblox snapshots" on public.roblox_snapshots;
+create policy "team reads roblox games"     on public.roblox_games     for select to authenticated using (public.is_approved());
+create policy "team reads roblox snapshots" on public.roblox_snapshots for select to authenticated using (public.is_approved());
+revoke all on public.roblox_games, public.roblox_snapshots, public.roblox_requests, public.roblox_state from anon, authenticated;
+grant select on public.roblox_games, public.roblox_snapshots to authenticated;
+revoke execute on function public.roblox_get(text, text, jsonb), public.roblox_scan(), public.roblox_refresh(int), public.roblox_process() from public, anon, authenticated;
+revoke execute on function public.roblox_tick(boolean), public.roblox_lookup(bigint), public.roblox_status(), public.roblox_dismiss(bigint, boolean) from public, anon;
+grant execute on function public.roblox_tick(boolean), public.roblox_lookup(bigint), public.roblox_status(), public.roblox_dismiss(bigint, boolean) to authenticated;
+
+-- 7-day CCU growth for every dashboard game (so the page doesn't have to load every snapshot)
+create or replace function public.game_growth() returns table (game_id uuid, growth numeric, points int)
+language sql stable security definer set search_path = public as $$
+  select g.id,
+    (select case when b.ccu > 0 then round((g.ccu - b.ccu) * 100.0 / b.ccu, 1) end
+       from game_stats b
+      where b.game_id = g.id and b.recorded_at < (select max(x.recorded_at) from game_stats x where x.game_id = g.id)
+      order by (b.recorded_at <= now() - interval '7 days') desc,
+               case when b.recorded_at <= now() - interval '7 days' then -extract(epoch from b.recorded_at) else extract(epoch from b.recorded_at) end
+      limit 1),
+    (select count(*)::int from game_stats s where s.game_id = g.id)
+  from games g where public.is_approved()
+$$;
+revoke execute on function public.game_growth() from public, anon;
+grant execute on function public.game_growth() to authenticated;
+
+-- every 5 minutes
+select cron.schedule('rushed-roblox-sync', '*/5 * * * *', 'select public.roblox_tick()');

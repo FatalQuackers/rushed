@@ -96,8 +96,9 @@
   function initApp() {
     /* ---------- state ---------- */
     const PROFILE_COLS = 'id,username,discord,roblox,role,status,created_at,approved_at';
+    const RBX_COLS = 'universe_id,place_id,name,creator_name,creator_type,genre,subgenre,playing,visits,favorites,up_votes,down_votes,created,updated,growth_7d,sources,last_synced,dismissed_by,dismissed_at';
     let user = null, me = null;
-    let team = [], games = [], statsBy = new Map(), watch = new Set(), activity = [], emails = new Map();
+    let team = [], games = [], growthBy = new Map(), watch = new Set(), activity = [], emails = new Map(), rbx = [], rbxStatus = null;
     let loadedAt = 0;
     const ROLES = { founder: 'Founder', co_founder: 'Co-Founder', management: 'Management', scout_lead: 'Scout Lead', scout: 'Scout' };
     const OWNER = ['founder', 'co_founder'];
@@ -207,15 +208,24 @@
     const member = id => team.find(t => t.id === id);
     const nameOf = (id, fallback) => (member(id) || {}).username || fallback || 'someone';
     const byName = g => (g.legacy_by ? g.legacy_by : nameOf(g.submitted_by, 'former member'));
-    const growth = g => {
-      const list = statsBy.get(g.id) || [];
-      if (list.length < 2) return null;
-      const last = list[list.length - 1];
-      const cut = new Date(last.recorded_at).getTime() - 7 * 86400e3;
-      let base = list[0];
-      for (const s of list) { if (new Date(s.recorded_at).getTime() <= cut) base = s; else break; }
-      if (base === last || !base.ccu) return null;
-      return ((last.ccu - base.ccu) / base.ccu) * 100;
+    const growth = g => { const r = growthBy.get(g.id); return r && r.growth != null ? Number(r.growth) : null; };
+    const points = g => (growthBy.get(g.id) || {}).points || 0;
+    const likeRatio = r => (r && (r.up_votes || 0) + (r.down_votes || 0) > 0 ? r.up_votes / (r.up_votes + r.down_votes) : null);
+    const likeText = r => { const v = likeRatio(r); return v == null ? '—' : `${Math.round(v * 100)}%`; };
+    const clamp01 = v => Math.max(0, Math.min(1, v));
+    const daysSince = iso => (iso ? (Date.now() - new Date(iso)) / 86400e3 : null);
+    const sinceText = d => (d == null ? '—' : d < 1 ? 'today' : d < 45 ? `${Math.round(d)}d ago` : d < 365 ? `${Math.round(d / 30)} mo ago` : `${(d / 365).toFixed(1)} yr ago`);
+    // How good a takeover target a Roblox game looks (0-100), with the reasons behind it.
+    const takeover = r => {
+      const e = r.visits > 0 ? (r.playing / r.visits) * 1000 : null, likes = likeRatio(r), days = daysSince(r.updated);
+      let score = 0; const why = [];
+      if (e != null) { score += clamp01(e / 5) * 30; if (e >= 2) why.push(`High efficiency (${e.toFixed(1)})`); }
+      if (likes != null) { score += clamp01((likes - 0.6) / 0.35) * 20; if (likes >= 0.85) why.push(`${Math.round(likes * 100)}% likes`); }
+      if (days != null) { score += clamp01((days - 14) / 106) * 20; if (days >= 45) why.push(`No update for ${sinceText(days).replace(' ago', '')}`); }
+      if (r.playing >= 50 && r.playing <= 5000) { score += 15; why.push('Acquirable size'); } else if (r.playing >= 20 && r.playing <= 15000) score += 7;
+      if (r.creator_type === 'User') { score += 5; why.push('Solo developer'); } else if (r.creator_type === 'Group') score += 2;
+      if (r.growth_7d > 0) { score += clamp01(r.growth_7d / 50) * 10; if (r.growth_7d >= 10) why.push(`CCU up ${Math.round(r.growth_7d)}% this week`); }
+      return { score: Math.round(score), why, e, likes, days };
     };
     const growthText = v => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(v >= 100 || v <= -100 ? 0 : 1)}%`);
     const growthEl = v => el('span', { class: v == null ? '' : v >= 0 ? 'up' : 'down' }, growthText(v));
@@ -235,21 +245,33 @@
     const avatar = name => el('span', { class: 'avatar', 'aria-hidden': 'true' }, (name || '?').charAt(0).toUpperCase());
 
     /* ---------- loading ---------- */
+    // Supabase returns at most 1000 rows per request, so big tables are read page by page.
+    const fetchAll = async make => {
+      const out = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await make().range(from, from + 999);
+        if (error) return { data: null, error };
+        out.push(...data);
+        if (data.length < 1000) return { data: out, error: null };
+      }
+    };
     async function loadAll() {
-      const [p, g, s, w, a] = await Promise.all([
+      const [p, g, s, w, a, r, st] = await Promise.all([
         sb.from('profiles').select(PROFILE_COLS).order('created_at'),
-        sb.from('games').select('*').order('created_at', { ascending: false }),
-        sb.from('game_stats').select('game_id,ccu,visits,recorded_at').order('recorded_at').limit(20000),
+        fetchAll(() => sb.from('games').select('*').order('created_at', { ascending: false })),
+        sb.rpc('game_growth'),
         sb.from('watchlist').select('game_id'),
         sb.from('activity').select('*').order('at', { ascending: false }).limit(300),
+        fetchAll(() => sb.from('roblox_games').select(RBX_COLS).gte('playing', 10).not('last_synced', 'is', null).order('universe_id')),
+        sb.rpc('roblox_status'),
       ]);
-      const err = [p, g, s, w, a].find(r => r.error);
+      const err = [p, g, s, w, a].find(x => x.error);
       if (err) { toast(friendly(err.error), true); return; }
-      team = p.data; games = g.data; activity = a.data; watch = new Set(w.data.map(r => r.game_id));
-      statsBy = new Map();
-      s.data.forEach(r => { if (!statsBy.has(r.game_id)) statsBy.set(r.game_id, []); statsBy.get(r.game_id).push(r); });
+      team = p.data; games = g.data; activity = a.data; watch = new Set(w.data.map(x => x.game_id));
+      growthBy = new Map((s.data || []).map(x => [x.game_id, x]));
+      rbx = r.error ? [] : r.data; rbxStatus = st.error ? null : st.data;
       me = member(me.id) || me;
-      if (isOwner()) { const { data } = await sb.rpc('member_emails'); emails = new Map((data || []).map(r => [r.id, r.email])); }
+      if (isOwner()) { const { data } = await sb.rpc('member_emails'); emails = new Map((data || []).map(x => [x.id, x.email])); }
       loadedAt = Date.now();
     }
 
@@ -292,7 +314,7 @@
       $('#badge-subs').textContent = myPending; $('#badge-subs').hidden = !myPending;
       const waiting = team.filter(t => t.status === 'pending').length;
       $('#badge-team').textContent = waiting; $('#badge-team').hidden = !(isOwner() && waiting);
-      renderOverview(); renderGems(); renderSubs(); renderOutreach(); renderLeader(); renderTeam(); renderActivity(); renderAccount();
+      renderOverview(); renderGems(); renderSuggest(); renderSubs(); renderOutreach(); renderLeader(); renderTeam(); renderActivity(); renderAccount();
       if (isOwner()) renderSettings();
     }
 
@@ -378,10 +400,92 @@
       document.body.append(a); a.click(); a.remove();
     });
 
+    /* ---------- suggestions (from the Roblox scan) ---------- */
+    ['#s-q', '#s-genre', '#s-min', '#s-max', '#s-score', '#s-stale', '#s-creator', '#s-sort', '#s-hidden'].forEach(id => $(id).addEventListener('input', () => renderSuggest()));
+    const onDash = new Set();
+    function renderSuggest() {
+      onDash.clear(); games.forEach(g => { if (g.universe_id) onDash.add(Number(g.universe_id)); const id = placeId(g.link); if (id) onDash.add('p' + id); });
+      const st = rbxStatus;
+      $('#rbx-status').textContent = !st ? '' : st.last_scan
+        ? `Last Roblox scan ${ago(st.last_scan)} · ${Number(st.known).toLocaleString()} games known${st.waiting ? ` · ${st.waiting} requests in progress` : ''}`
+        : 'The first Roblox scan runs within 5 minutes of setup.';
+      $('#rbx-error').hidden = !(st && st.last_error && (!st.last_ok || new Date(st.last_ok) < new Date(Date.now() - 3600e3)));
+      if (st && st.last_error) $('#rbx-error').textContent = `Roblox isn't answering right now (${st.last_error}). It retries every 5 minutes.`;
+      $('#scan-now').hidden = !isStaff();
+      const gs = $('#s-genre'), cur = gs.value;
+      const genres = [...new Set(rbx.map(r => r.genre).filter(Boolean))].sort();
+      gs.replaceChildren(el('option', { value: '' }, 'All genres'), ...genres.map(g => el('option', { value: g }, g))); gs.value = genres.includes(cur) ? cur : '';
+      const q = $('#s-q').value.trim().toLowerCase(), min = Number($('#s-min').value) || 0, max = Number($('#s-max').value) || Infinity;
+      const minScore = Number($('#s-score').value) || 0, stale = Number($('#s-stale').value) || 0, creator = $('#s-creator').value, showHidden = $('#s-hidden').checked;
+      const sort = $('#s-sort').value;
+      const list = rbx.map(r => ({ r, t: takeover(r) }))
+        .filter(({ r, t }) => !onDash.has(Number(r.universe_id)) && !onDash.has('p' + r.place_id) && (showHidden ? !!r.dismissed_at : !r.dismissed_at)
+          && (!q || `${r.name} ${r.creator_name || ''}`.toLowerCase().includes(q)) && (!gs.value || r.genre === gs.value)
+          && r.playing >= min && r.playing <= max && t.score >= minScore && (!stale || (t.days != null && t.days >= stale))
+          && (!creator || r.creator_type === creator))
+        .sort((a, b) => sort === 'eff' ? (b.t.e || 0) - (a.t.e || 0) : sort === 'ccu' ? b.r.playing - a.r.playing : sort === 'growth' ? (b.r.growth_7d ?? -1e9) - (a.r.growth_7d ?? -1e9)
+          : sort === 'stale' ? (b.t.days || 0) - (a.t.days || 0) : b.t.score - a.t.score);
+      $('#s-count').textContent = `${list.length} game${list.length === 1 ? '' : 's'}`;
+      $('#suggest').replaceChildren(...list.slice(0, 120).map(({ r, t }) => el('article', { class: 'sug' },
+        el('div', { class: 'sug-top' },
+          el('span', { class: `score ${t.score >= 70 ? 'hot' : t.score >= 50 ? 'warm' : ''}`, title: 'Takeover score out of 100' }, t.score),
+          el('div', { class: 'sug-title' }, el('a', { href: `https://www.roblox.com/games/${r.place_id}`, target: '_blank', rel: 'noopener noreferrer' }, r.name || 'Untitled', ' ↗'),
+            el('small', {}, [r.subgenre || r.genre, r.creator_name ? `by ${r.creator_name}${r.creator_type === 'Group' ? ' (group)' : ''}` : ''].filter(Boolean).join(' · ')))),
+        el('div', { class: 'sug-stats' },
+          el('span', {}, el('small', {}, 'CCU'), el('b', {}, fmt(r.playing))),
+          el('span', {}, el('small', {}, 'Visits'), el('b', {}, fmt(r.visits))),
+          el('span', {}, el('small', {}, 'Efficiency'), el('b', {}, t.e != null ? t.e.toFixed(1) : '—')),
+          el('span', {}, el('small', {}, 'Likes'), el('b', {}, likeText(r))),
+          el('span', {}, el('small', {}, 'Updated'), el('b', {}, sinceText(t.days))),
+          el('span', {}, el('small', {}, 'Growth 7d'), growthEl(r.growth_7d == null ? null : Number(r.growth_7d)))),
+        t.why.length ? el('ul', { class: 'why' }, t.why.map(w => el('li', {}, w))) : '',
+        el('div', { class: 'row-btns' },
+          el('button', { type: 'button', class: 'btn btn-red btn-sm', onclick: e => busy(e.currentTarget, () => addSuggestion(r, t)) }, isStaff() ? 'ADD TO REVIEW ↗' : 'SUBMIT ↗'),
+          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: e => busy(e.currentTarget, () => run(sb.rpc('roblox_dismiss', { uid: r.universe_id, hide: !r.dismissed_at }), r.dismissed_at ? 'Back in suggestions.' : 'Hidden for everyone.')) }, r.dismissed_at ? 'UNHIDE' : 'HIDE')))));
+      $('#suggest-empty').hidden = list.length > 0;
+      $('#suggest-empty').textContent = rbx.length ? 'No games match those filters.' : 'No Roblox data yet. The scan runs every 5 minutes, so check back shortly.';
+    }
+    const addSuggestion = (r, t) => run(sb.from('games').insert({
+      name: (r.name || 'Untitled').slice(0, 120), link: String(r.place_id), universe_id: r.universe_id, genre: (r.subgenre || r.genre || 'Other').slice(0, 40),
+      ccu: r.playing || 0, visits: r.visits || 0, submitted_by: me.id,
+      notes: `Found by the Roblox scan (takeover score ${t.score}).${t.why.length ? ' ' + t.why.join(', ') + '.' : ''}${r.creator_name ? ` Owner: ${r.creator_name}${r.creator_type === 'Group' ? ' (group)' : ''}.` : ''}`,
+    }), 'Added. It\'s in Submissions waiting for review.');
+    $('#scan-now').addEventListener('click', e => busy(e.currentTarget, async () => {
+      const { error } = await sb.rpc('roblox_tick', { force_scan: true });
+      if (error) return toast(friendly(error), true);
+      toast('Scanning Roblox… new games appear over the next minute.');
+      for (let i = 0; i < 4; i++) { await new Promise(res => setTimeout(res, 8000)); await sb.rpc('roblox_tick'); }
+      await loadAll(); renderAll();
+    }));
+
     /* ---------- submit ---------- */
     const sf = $('#submit-form');
     const liveEff = () => { const c = Number(sf.ccu.value), v = Number(sf.visits.value); $('#submit-eff').textContent = v > 0 ? `Efficiency factor: ${((c / v) * 1000).toFixed(2)} · ${verdict((c / v) * 1000)}` : 'Efficiency factor: —'; };
     sf.ccu.addEventListener('input', liveEff); sf.visits.addEventListener('input', liveEff);
+    let lookupFor = null;
+    const addGenre = g => { if (g && !$$('option', sf.genre).some(o => o.value === g)) sf.genre.append(el('option', { value: g }, g)); };
+    sf.link.addEventListener('input', () => {
+      const id = placeId(sf.link.value), note = $('#lookup-note');
+      if (!id || id === lookupFor) return;
+      lookupFor = id; sf.universe_id.value = '';
+      say(note, 'Looking it up on Roblox…');
+      (async () => {
+        for (let i = 0; i < 12 && lookupFor === id; i++) {
+          const { data, error } = await sb.rpc('roblox_lookup', { place: Number(id) });
+          if (lookupFor !== id) return;
+          if (error) return say(note, 'Couldn\'t look that up. Fill the numbers in by hand.', true);
+          if (data && data.last_synced) {
+            if (!sf.name.value) sf.name.value = data.name || '';
+            const genre = data.subgenre || data.genre; addGenre(genre); if (genre && !sf.genre.value) sf.genre.value = genre;
+            sf.ccu.value = data.playing ?? ''; sf.visits.value = data.visits ?? ''; sf.universe_id.value = data.universe_id;
+            liveEff();
+            return say(note, `Filled in from Roblox ✓ ${data.creator_name ? `Made by ${data.creator_name}${data.creator_type === 'Group' ? ' (group)' : ''}, ` : ''}${likeText(data)} likes, last updated ${sinceText(daysSince(data.updated))}.`);
+          }
+          await new Promise(res => setTimeout(res, 1500));
+        }
+        if (lookupFor === id) say(note, 'Roblox is slow to answer. Fill the numbers in by hand, or try again in a minute.', true);
+      })();
+    });
     const readGameForm = (f, msg) => {
       const v = k => (f[k] ? f[k].value.trim() : '');
       const id = placeId(v('link'));
@@ -400,11 +504,12 @@
       e.preventDefault();
       const msg = $('#submit-note');
       const row = readGameForm(sf, msg); if (!row) return;
+      if (sf.universe_id.value) row.universe_id = Number(sf.universe_id.value);
       const dupe = games.find(g => placeId(g.link) === row.link);
       if (dupe) return say(msg, `"${dupe.name}" is already on the dashboard (${STATUS[dupe.status].toLowerCase()}, sent by ${byName(dupe)}).`, true);
       busy($('button[type=submit]', sf), async () => {
         const ok = await run(sb.from('games').insert({ ...row, submitted_by: me.id }), 'Sent for review.');
-        if (ok) { sf.reset(); liveEff(); say(msg, 'Sent! You can follow it under Submissions.'); }
+        if (ok) { sf.reset(); lookupFor = null; say($('#lookup-note'), ''); liveEff(); say(msg, 'Sent! You can follow it under Submissions.'); }
       });
     });
 
@@ -598,7 +703,7 @@
 
     const chart = (list, key, label, color) => {
       const box = el('div', { class: 'chart' }, el('b', {}, label));
-      if (list.length < 2) { box.append(el('p', { class: 'empty' }, 'Not enough history yet. Update the stats to start the chart.')); return box; }
+      if (list.length < 2) { box.append(el('p', { class: 'empty' }, 'Not enough history yet. Linked games get a new point about every hour.')); return box; }
       const W = 300, H = 110, P = 4;
       const t0 = new Date(list[0].recorded_at).getTime(), t1 = new Date(list[list.length - 1].recorded_at).getTime() || t0 + 1;
       const vals = list.map(s => Number(s[key])), lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
@@ -621,13 +726,20 @@
     };
     const metric = (label, value, small) => el('div', { class: 'metric' }, el('span', {}, label), el('b', {}, value), small ? el('small', {}, small) : '');
 
-    function openGame(id) {
+    async function openGame(id) {
       const g = games.find(x => x.id === id); if (!g) return;
       openId = id;
+      const since = new Date(Date.now() - 45 * 86400e3).toISOString();
+      const [h, rb] = await Promise.all([
+        sb.from('game_stats').select('ccu,visits,recorded_at').eq('game_id', g.id).gte('recorded_at', since).order('recorded_at', { ascending: false }).limit(1000),
+        g.universe_id ? sb.from('roblox_games').select(RBX_COLS).eq('universe_id', g.universe_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      if (openId !== id) return;
+      const hist = (h.data || []).reverse();
+      const live = rb.data;
       const mine = g.submitted_by === me.id && !g.legacy_by;
       const canEdit = isStaff() || (mine && g.status === 'pending');
       const canDelete = isOwner() || (mine && g.status === 'pending');
-      const hist = statsBy.get(g.id) || [];
       $('#dlg-status').textContent = `${STATUS[g.status].toUpperCase()} · ${g.genre.toUpperCase()}`;
       $('#dlg-title').textContent = g.name;
       $('#dlg-sub').replaceChildren(`Sent by ${byName(g)} · ${ago(g.created_at)}`, g.reviewed_by ? ` · reviewed by ${nameOf(g.reviewed_by)}` : '');
@@ -638,12 +750,18 @@
           metric('CCU', fmt(g.ccu), `updated ${ago(hist.length ? hist[hist.length - 1].recorded_at : g.updated_at)}`),
           metric('Visits', fmt(g.visits)),
           metric('Efficiency factor', eff(g).toFixed(2), verdict(eff(g))),
-          metric('CCU growth (7d)', growthText(growth(g)), hist.length < 2 ? 'needs 2+ updates' : `${hist.length} data points`),
+          metric('CCU growth (7d)', growthText(growth(g)), points(g) < 2 ? 'needs 2+ updates' : `${points(g)} data points`),
           metric('Avg playtime', g.avg_playtime_min != null ? `${g.avg_playtime_min} min` : '—'),
           metric('Day-1 retention', g.d1_retention != null ? `${g.d1_retention}%` : '—'),
           metric('Est. monthly Robux', g.est_monthly_robux != null ? fmt(g.est_monthly_robux) : '—'),
           metric('Rating', g.rating ? stars(g.rating) : '—')),
         el('div', { class: 'charts' }, chart(hist, 'ccu', 'CCU history', '#f34b3f'), chart(hist, 'visits', 'Visits history', '#7658ef')),
+        live ? el('div', { class: 'metrics' },
+          metric('Likes', likeText(live), live.up_votes != null ? `${fmt(live.up_votes)} up · ${fmt(live.down_votes)} down` : ''),
+          metric('Favorites', live.favorites != null ? fmt(live.favorites) : '—'),
+          metric('Last Roblox update', live.updated ? ago(live.updated) : '—', live.created ? `made ${new Date(live.created).toLocaleDateString()}` : ''),
+          metric('Creator', live.creator_name || '—', live.creator_type === 'User' ? 'solo developer' : live.creator_type === 'Group' ? 'group' : '')) : '',
+        el('p', { class: 'muted small' }, g.universe_id ? `Connected to Roblox. CCU and visits update automatically about once an hour${live && live.last_synced ? ` (last ${ago(live.last_synced)})` : ''}.` : 'Linking to Roblox… numbers start updating automatically within a few minutes.'),
         g.notes ? el('p', { class: 'notes' }, g.notes) : '',
         g.review_comment ? el('p', { class: 'notes' }, `“${g.review_comment}”, ${nameOf(g.reviewed_by)}`) : '',
       ];
@@ -660,7 +778,7 @@
         if (sForm.ccu.value === '' || sForm.visits.value === '' || c < 0 || v < 0) return say(sNote, 'Enter the CCU and visits from the Roblox page.', true);
         busy($('button', sForm), async () => { if (await run(sb.from('game_stats').insert({ game_id: g.id, ccu: Math.round(c), visits: Math.round(v), recorded_by: me.id }), 'Stats updated.')) reopen(); });
       });
-      sections.push(el('section', { class: 'dlg-sec' }, el('h3', {}, 'Update stats'), el('p', { class: 'muted' }, 'Copy today\'s numbers from the Roblox page. Each update adds a point to the charts and growth rate.'), sForm, sNote));
+      sections.push(el('section', { class: 'dlg-sec' }, el('h3', {}, 'Add stats by hand'), el('p', { class: 'muted' }, 'Not needed for linked games, but you can add a snapshot any time. Each one adds a point to the charts.'), sForm, sNote));
 
       // outreach (approved games)
       if (g.status === 'approved') {
