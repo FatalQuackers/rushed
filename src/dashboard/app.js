@@ -34,6 +34,9 @@
   });
 
   /* ---------- Supabase ---------- */
+  // Accept a pasted dashboard address (supabase.com/dashboard/project/<id>) as well as the API URL.
+  const dashRef = String(CFG.supabaseUrl || '').match(/supabase\.com\/dashboard\/project\/([a-z0-9]+)/i);
+  if (dashRef) CFG.supabaseUrl = `https://${dashRef[1]}.supabase.co`;
   const configured = !!(CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase);
   const sb = configured ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey) : null;
   const dashUrl = new URL(document.body.dataset.root + 'dashboard/', location.href).href;
